@@ -1,0 +1,101 @@
+{{/* helm/tfe-chart/templates/configmap.yaml */}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tfe-config
+  namespace: openshift-tfe
+data:
+  TFE_HOSTNAME:          {{ .Values.tfe.hostname | quote }}
+  TFE_OPERATIONAL_MODE:  {{ .Values.tfe.operationalMode | quote }}
+  TFE_DATABASE_HOST:     {{ printf "%s:%v" .Values.tfe.db.host .Values.tfe.db.port | quote }}
+  TFE_DATABASE_NAME:     {{ .Values.tfe.db.name | quote }}
+  TFE_DATABASE_USER:     {{ .Values.tfe.db.user | quote }}
+  TFE_DATABASE_PARAMETERS: {{ printf "sslmode=%s" .Values.tfe.db.sslMode | quote }}
+  TFE_OBJECT_STORAGE_TYPE:          "google"
+  TFE_OBJECT_STORAGE_GOOGLE_BUCKET: {{ .Values.tfe.storage.gcsBucket | quote }}
+  TFE_OBJECT_STORAGE_GOOGLE_PROJECT: ""
+  TFE_REDIS_HOST:  {{ printf "%s:%v" .Values.tfe.redis.host .Values.tfe.redis.port | quote }}
+  TFE_REDIS_USE_AUTH: {{ .Values.tfe.redis.useAuth | quote }}
+  TFE_REDIS_USE_TLS:  {{ .Values.tfe.redis.useTLS | quote }}
+  TFE_HTTP_PORT:   "8080"
+  TFE_HTTPS_PORT:  "8443"
+  TFE_TLS_CERT_FILE: "/etc/tfe/tls/tls.crt"
+  TFE_TLS_KEY_FILE:  "/etc/tfe/tls/tls.key"
+  db_host: {{ .Values.tfe.db.host | quote }}
+  db_user: {{ .Values.tfe.db.user | quote }}
+---
+{{/* Service */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfe
+  namespace: openshift-tfe
+  labels:
+    app: terraform-enterprise
+spec:
+  selector:
+    app: terraform-enterprise
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfe-headless
+  namespace: openshift-tfe
+spec:
+  clusterIP: None
+  selector:
+    app: terraform-enterprise
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+---
+{{/* OpenShift Route */}}
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: tfe
+  namespace: openshift-tfe
+  labels:
+    app: terraform-enterprise
+  annotations:
+    {{- if .Values.tfe.tls.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.tfe.tls.certIssuer | quote }}
+    {{- end }}
+spec:
+  host: {{ .Values.tfe.hostname | quote }}
+  to:
+    kind: Service
+    name: tfe
+    weight: 100
+  port:
+    targetPort: https
+  tls:
+    termination: {{ .Values.route.termination }}
+    insecureEdgeTerminationPolicy: {{ .Values.route.insecureEdgeTerminationPolicy }}
+  wildcardPolicy: None
+{{- end }}
+---
+{{/* Pod Disruption Budget */}}
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tfe-pdb
+  namespace: openshift-tfe
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: terraform-enterprise
+{{- end }}

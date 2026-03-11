@@ -1,0 +1,121 @@
+{{/* helm/tfe-chart/templates/statefulset.yaml */}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tfe
+  namespace: openshift-tfe
+  labels:
+    app: terraform-enterprise
+    app.kubernetes.io/version: {{ .Values.tfe.version | quote }}
+spec:
+  replicas: {{ .Values.tfe.replicas }}
+  selector:
+    matchLabels:
+      app: terraform-enterprise
+  serviceName: tfe-headless
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: terraform-enterprise
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.tfe.serviceAccount.name }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      {{- with .Values.tfe.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tfe.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tfe.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        - name: db-wait
+          image: postgres:15-alpine
+          command: ["sh", "-c",
+            "until pg_isready -h $(DB_HOST) -p 5432 -U $(DB_USER); do echo waiting for postgres; sleep 2; done"]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: tfe-config
+                  key: db_host
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: tfe-config
+                  key: db_user
+      containers:
+        - name: terraform-enterprise
+          image: "{{ .Values.tfe.image.repository }}/{{ .Values.tfe.image.name }}:{{ .Values.tfe.version }}"
+          imagePullPolicy: {{ .Values.tfe.image.pullPolicy }}
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: tfe-config
+          env:
+            - name: TFE_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tfe-secrets
+                  key: db_password
+            - name: TFE_LICENSE
+              valueFrom:
+                secretKeyRef:
+                  name: tfe-secrets
+                  key: license
+            - name: TFE_ENCRYPTION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tfe-secrets
+                  key: enc_password
+          resources: {{- toYaml .Values.tfe.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.tfe.probes.liveness.path }}
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.tfe.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.tfe.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.tfe.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.tfe.probes.readiness.path }}
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.tfe.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.tfe.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.tfe.probes.readiness.failureThreshold }}
+          {{- if .Values.tfe.persistence.enabled }}
+          volumeMounts:
+            - name: tfe-data
+              mountPath: /var/lib/terraform-enterprise
+          {{- end }}
+      imagePullSecrets:
+        - name: tfe-registry-secret
+  {{- if .Values.tfe.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: tfe-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.tfe.persistence.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.tfe.persistence.size }}
+  {{- end }}

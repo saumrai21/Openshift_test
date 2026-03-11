@@ -1,0 +1,43 @@
+# Secrets — NEVER commit these
+terraform.hclic
+*.hclic
+terraform.tfvars
+*.tfvars
+!*.tfvars.example
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+tfplan
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Helm
+charts/
+*.tgz
+
+# Credentials
+*.json
+service-account*.json
+kubeconfig
+.kube/
+
+# Logs
+*.log
+deploy-*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,17 @@
+# openshift/storage/storageclass.yaml
+---
+# SSD-backed StorageClass for TFE persistent volumes
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: tfe-ssd
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: pd.csi.storage.gke.io
+parameters:
+  type: pd-ssd
+  replication-type: regional-pd  # Regional for HA
+  zones: "us-central1-a,us-central1-b"  # Match your region/zones
+reclaimPolicy: Retain    # Keep data on PVC deletion
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer

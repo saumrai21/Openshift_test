@@ -1,0 +1,30 @@
+# terraform/environments/dev/terraform.tfvars.example
+# Copy to terraform.tfvars and fill in your values
+
+# ── GCP ───────────────────────────────────────────────────────────────────────
+project_id = "my-gcp-project-id"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# ── OpenShift Cluster ─────────────────────────────────────────────────────────
+ocp_cluster_name  = "tfe-ocp-dev"
+ocp_version       = "1.28"           # GKE/OCP-compatible version
+node_machine_type = "n2-standard-4"  # 8 vCPU / 32 GB RAM per node
+node_count        = 2                # 3 nodes minimum for HA
+
+# ── TFE ───────────────────────────────────────────────────────────────────────
+tfe_hostname = "tfe.example.com"
+tfe_version  = "latest"             # or pin e.g. "v202501-1"
+tfe_replicas = 1                    # 1 = single, 2+ = active/active
+
+# Secret Manager secret names (will be created if absent)
+tfe_license_secret             = "tfe-license"
+tfe_encryption_password_secret = "tfe-enc-password"
+
+# ── Cloud SQL (PostgreSQL) ────────────────────────────────────────────────────
+db_tier    = "db-custom-4-15360"   # 4 vCPU / 15 GB RAM
+db_version = "POSTGRES_15"
+
+# ── Memorystore (Redis) ───────────────────────────────────────────────────────
+redis_tier      = "STANDARD_HA"
+redis_memory_gb = 4

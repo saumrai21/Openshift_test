@@ -1,0 +1,90 @@
+# openshift/operators/operators.yaml
+# Installs cert-manager and external-secrets-operator via OLM OperatorHub
+
+---
+# cert-manager Operator
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cert-manager-operator
+  namespace: cert-manager
+spec:
+  channel: stable-v1
+  name: cert-manager
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: cert-manager-og
+  namespace: cert-manager
+spec:
+  targetNamespaces:
+    - cert-manager
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+---
+# ClusterIssuer using Let's Encrypt (ACME)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@example.com   # CHANGE THIS
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: openshift-default
+---
+# external-secrets Operator
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: external-secrets-og
+  namespace: external-secrets
+spec:
+  targetNamespaces:
+    - external-secrets
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: external-secrets-operator
+  namespace: external-secrets
+spec:
+  channel: stable
+  name: external-secrets-operator
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+---
+# ExternalSecret — pull TFE secrets from GCP Secret Manager
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: gcp-secret-store
+  namespace: openshift-tfe
+spec:
+  provider:
+    gcpsm:
+      projectID: "PLACEHOLDER_PROJECT_ID"   # patched by deploy.sh
+      auth:
+        workloadIdentity:
+          clusterLocation: "PLACEHOLDER_REGION"
+          clusterName: "PLACEHOLDER_CLUSTER"
+          serviceAccountRef:
+            name: tfe

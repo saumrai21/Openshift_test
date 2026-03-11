@@ -1,0 +1,109 @@
+# helm/tfe-chart/values.yaml
+# Default values — override with --set or a custom values file
+
+tfe:
+  hostname: ""       # Required: tfe.example.com
+  version: "latest"  # TFE image version tag
+  replicas: 2        # 1 = standalone, 2+ = active/active
+
+  image:
+    repository: images.releases.hashicorp.com
+    name: hashicorp/terraform-enterprise
+    pullPolicy: IfNotPresent
+
+  # TLS certificate via cert-manager
+  tls:
+    enabled: true
+    certIssuer: letsencrypt-prod   # ClusterIssuer name
+
+  # Database
+  db:
+    host: ""
+    port: 5432
+    name: tfe
+    user: tfe
+    sslMode: require
+    # password sourced from tfe-secrets k8s secret
+
+  # Object storage
+  storage:
+    type: google
+    gcsBucket: ""
+    # credentials via Workload Identity — no key needed
+
+  # Redis
+  redis:
+    host: ""
+    port: 6379
+    useAuth: false
+    useTLS: false
+
+  # Operational mode
+  operationalMode: active-active   # active-active | external | disk
+
+  # Resource requests/limits
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+  # Persistent Volume for audit logs / terraform state (if disk mode)
+  persistence:
+    enabled: true
+    storageClass: tfe-ssd
+    size: 100Gi
+
+  serviceAccount:
+    name: tfe
+    email: ""   # GCP SA email — set via --set or deploy-tfe.sh
+
+  # Pod topology spread for HA
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app: terraform-enterprise
+
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: tfe
+      effect: NoSchedule
+
+  nodeSelector:
+    workload: tfe
+
+  # Liveness / readiness probes
+  probes:
+    liveness:
+      path: /_health_check
+      initialDelaySeconds: 120
+      periodSeconds: 30
+      failureThreshold: 5
+    readiness:
+      path: /api/v2/ping
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      failureThreshold: 3
+
+# OpenShift Route configuration
+route:
+  enabled: true
+  termination: edge   # edge | reencrypt | passthrough
+  insecureEdgeTerminationPolicy: Redirect
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false   # TFE active/active handles concurrency internally
+  minReplicas: 2
+  maxReplicas: 5

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: tfe-chart
+description: Terraform Enterprise on OpenShift (GCP)
+type: application
+version: "1.0.0"
+appVersion: "latest"
+keywords:
+  - terraform
+  - terraform-enterprise
+  - openshift
+  - gcp
+maintainers:
+  - name: Platform Engineering
+    email: platform@example.com
+dependencies: []
